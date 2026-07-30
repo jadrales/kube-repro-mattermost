@@ -1,0 +1,54 @@
+# MailHog — catches all outbound SMTP and exposes a web UI at :8025
+# Eliminates the need for real SMTP credentials during repro work
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailhog
+  namespace: mattermost
+  labels:
+    app: mailhog
+    app.kubernetes.io/part-of: mattermost-repro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailhog
+  template:
+    metadata:
+      labels:
+        app: mailhog
+    spec:
+      containers:
+      - name: mailhog
+        image: mailhog/mailhog:latest
+        ports:
+        - containerPort: 1025
+          name: smtp
+        - containerPort: 8025
+          name: http
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 50m
+          limits:
+            memory: 256Mi
+            cpu: 250m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailhog
+  namespace: mattermost
+  labels:
+    app: mailhog
+    app.kubernetes.io/part-of: mattermost-repro
+spec:
+  selector:
+    app: mailhog
+  ports:
+  - name: smtp
+    port: 1025
+    targetPort: 1025
+  - name: http
+    port: 8025
+    targetPort: 8025

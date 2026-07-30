@@ -1,0 +1,27 @@
+# Mattermost Operator Helm values for local repro environment
+# Minimal resource footprint suitable for minikube
+
+replicaCount: 1
+
+image:
+  repository: mattermost/mattermost-operator
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+env:
+  # How many installations this operator instance will reconcile concurrently
+  maxReconcilingInstallations: 5
+  requeueOnLimitDelay: 20
+
+serviceAccount:
+  create: true
+
+rbac:
+  create: true

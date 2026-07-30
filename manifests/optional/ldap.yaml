@@ -1,0 +1,146 @@
+# OpenLDAP — mirrors the LDAP setup from CS-Repro-Mattermost
+# Pre-loaded with test users:  admin / mmadmin, user1–user5 / Password1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openldap
+  namespace: mattermost
+  labels:
+    app: openldap
+    app.kubernetes.io/part-of: mattermost-repro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openldap
+  template:
+    metadata:
+      labels:
+        app: openldap
+    spec:
+      containers:
+      - name: openldap
+        image: osixia/openldap:1.5.0
+        env:
+        - name: LDAP_ORGANISATION
+          value: "Mattermost"
+        - name: LDAP_DOMAIN
+          value: "mattermost.local"
+        - name: LDAP_ADMIN_PASSWORD
+          value: "mmadmin"
+        - name: LDAP_CONFIG_PASSWORD
+          value: "mmconfig"
+        - name: LDAP_READONLY_USER
+          value: "true"
+        - name: LDAP_READONLY_USER_USERNAME
+          value: "readonly"
+        - name: LDAP_READONLY_USER_PASSWORD
+          value: "readonly"
+        ports:
+        - containerPort: 389
+          name: ldap
+        - containerPort: 636
+          name: ldaps
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 100m
+          limits:
+            memory: 512Mi
+            cpu: 500m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openldap
+  namespace: mattermost
+  labels:
+    app: openldap
+    app.kubernetes.io/part-of: mattermost-repro
+spec:
+  selector:
+    app: openldap
+  ports:
+  - name: ldap
+    port: 389
+    targetPort: 389
+  - name: ldaps
+    port: 636
+    targetPort: 636
+---
+# Seed LDAP with test users immediately after OpenLDAP is ready
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ldap-seed
+  namespace: mattermost
+  labels:
+    app.kubernetes.io/part-of: mattermost-repro
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: seed
+        image: osixia/openldap:1.5.0
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Wait for LDAP to be ready
+          until ldapsearch -x -H ldap://openldap:389 \
+            -D "cn=admin,dc=mattermost,dc=local" \
+            -w mmadmin -b "dc=mattermost,dc=local" > /dev/null 2>&1; do
+            echo "waiting for openldap..."; sleep 3
+          done
+
+          # Create OU for users
+          ldapadd -x -H ldap://openldap:389 \
+            -D "cn=admin,dc=mattermost,dc=local" -w mmadmin <<EOF
+          dn: ou=users,dc=mattermost,dc=local
+          objectClass: organizationalUnit
+          ou: users
+
+          dn: ou=groups,dc=mattermost,dc=local
+          objectClass: organizationalUnit
+          ou: groups
+          EOF
+
+          # Create test users (user1–user5 + ldap-admin)
+          for i in 1 2 3 4 5; do
+            ldapadd -x -H ldap://openldap:389 \
+              -D "cn=admin,dc=mattermost,dc=local" -w mmadmin <<EOF
+          dn: uid=user${i},ou=users,dc=mattermost,dc=local
+          objectClass: inetOrgPerson
+          objectClass: posixAccount
+          uid: user${i}
+          cn: Test User${i}
+          sn: User${i}
+          givenName: Test
+          mail: user${i}@mattermost.local
+          userPassword: Password1
+          uidNumber: $((1000 + i))
+          gidNumber: 1000
+          homeDirectory: /home/user${i}
+          EOF
+          done
+
+          # LDAP admin user (maps to Mattermost system admin)
+          ldapadd -x -H ldap://openldap:389 \
+            -D "cn=admin,dc=mattermost,dc=local" -w mmadmin <<EOF
+          dn: uid=ldap-admin,ou=users,dc=mattermost,dc=local
+          objectClass: inetOrgPerson
+          objectClass: posixAccount
+          uid: ldap-admin
+          cn: LDAP Admin
+          sn: Admin
+          givenName: LDAP
+          mail: ldap-admin@mattermost.local
+          userPassword: mmadmin
+          uidNumber: 1010
+          gidNumber: 1000
+          homeDirectory: /home/ldap-admin
+          EOF
+
+          echo "LDAP seed complete."

@@ -1,0 +1,68 @@
+apiVersion: installation.mattermost.com/v1beta1
+kind: Mattermost
+metadata:
+  name: mattermost
+  namespace: mattermost
+spec:
+  # MM_VERSION is substituted by scripts/up.sh via envsubst
+  version: ${MM_VERSION}
+  # 100users keeps resource usage light for local repro work
+  size: 100users
+  replicas: 1
+
+  ingress:
+    enabled: true
+    host: ${MM_DOMAIN}
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+
+  database:
+    external:
+      secret: mattermost-db-secret
+
+  fileStore:
+    external:
+      url: minio.mattermost.svc.cluster.local:9000
+      bucket: ${MINIO_BUCKET}
+      secret: mattermost-filestore-secret
+
+  mattermostEnv:
+  # MinIO doesn't use TLS or SSE in this local setup
+  - name: MM_FILESETTINGS_AMAZONS3SSL
+    value: "false"
+  - name: MM_FILESETTINGS_AMAZONS3SSE
+    value: "false"
+  - name: MM_FILESETTINGS_AMAZONS3SIGNV2
+    value: "false"
+  - name: MM_FILESETTINGS_AMAZONS3REGION
+    value: "us-east-1"
+  # Route all outbound email through in-cluster MailHog
+  - name: MM_EMAILSETTINGS_SMTPSERVER
+    value: "mailhog.mattermost.svc.cluster.local"
+  - name: MM_EMAILSETTINGS_SMTPPORT
+    value: "1025"
+  - name: MM_EMAILSETTINGS_ENABLESMTPAUTH
+    value: "false"
+  - name: MM_EMAILSETTINGS_CONNECTIONSECURITY
+    value: ""
+  - name: MM_EMAILSETTINGS_SENDEMAILNOTIFICATIONS
+    value: "true"
+  - name: MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION
+    value: "false"
+  # Developer-friendly: verbose logging, testing endpoints enabled
+  - name: MM_SERVICESETTINGS_ENABLEDEVELOPER
+    value: "true"
+  - name: MM_SERVICESETTINGS_ENABLETESTING
+    value: "true"
+  - name: MM_LOGSETTINGS_CONSOLELEVEL
+    value: "DEBUG"
+  - name: MM_LOGSETTINGS_ENABLECONSOLE
+    value: "true"
+  - name: MM_LOGSETTINGS_CONSOLEJSON
+    value: "false"
+  # Disable rate limiting for reproducible testing
+  - name: MM_RATELIMITSETTINGS_ENABLE
+    value: "false"

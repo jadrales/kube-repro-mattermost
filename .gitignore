@@ -1,0 +1,5 @@
+.env
+license.mattermost
+*.mattermost
+# Generated secret manifests (never commit these)
+manifests/secrets/
