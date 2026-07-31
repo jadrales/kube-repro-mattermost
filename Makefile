@@ -69,6 +69,9 @@ run-all: run run-ldap run-monitoring ## Deploy the full stack (all optional comp
 
 start: ## Resume a stopped cluster — all PVC data is preserved, port-forwards restart automatically
 	minikube start -p $(PROFILE)
+	@echo "Waiting for pods to be ready..."
+	@$(KUBECTL) -n $(NAMESPACE) wait pod -l app=mattermost \
+	  --for=condition=Ready --timeout=120s 2>/dev/null || true
 	@printf "\n\033[1mPort-forwards:\033[0m\n"
 	@bash scripts/port-forward.sh
 	@echo ""
