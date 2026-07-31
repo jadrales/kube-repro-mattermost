@@ -3,3 +3,5 @@ license.mattermost
 *.mattermost
 # Generated secret manifests (never commit these)
 manifests/secrets/
+# Background port-forward PID tracking
+.pf.pid

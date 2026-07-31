@@ -42,11 +42,8 @@ cp .env.example .env
 # 2. One-time setup: start minikube, install operator, deploy infrastructure
 make setup
 
-# 3. Deploy Mattermost
+# 3. Deploy Mattermost — port-forwards start automatically when ready
 make run
-
-# 4. Access it
-make port-forward
 # → Mattermost:    http://localhost:8065
 # → MailHog:       http://localhost:8025
 # → MinIO console: http://localhost:9001
@@ -58,7 +55,7 @@ First visit to `http://localhost:8065` will prompt you to create an admin accoun
 
 ```
 # Start of session
-make start          # Resume cluster (all data preserved, ~10s)
+make start          # Resume cluster + restart port-forwards automatically
 
 # Work...
 make logs           # Stream Mattermost logs
@@ -66,7 +63,7 @@ make status         # Health overview + pod list
 make shell          # bash into the Mattermost pod
 
 # End of session
-make stop           # Pause cluster (data preserved, frees RAM/CPU)
+make stop           # Stop port-forwards + pause cluster (data preserved)
 ```
 
 The cluster is a named minikube profile (`mm-repro` by default), so it coexists with any default minikube clusters you use elsewhere.
@@ -229,7 +226,7 @@ kubectl --context mm-repro -n mattermost logs -l app=minio -c create-bucket
 
 **Port-forward drops / connection refused**
 ```bash
-# Re-run port-forward (it exits if the pod restarts)
+# Port-forwards die if a pod restarts — re-run to restore them
 make port-forward
 ```
 

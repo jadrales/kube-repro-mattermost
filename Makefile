@@ -24,7 +24,7 @@ HELM    := helm --kube-context $(PROFILE)
 .PHONY: help setup generate-secrets \
         run run-ha run-ldap run-monitoring run-all \
         start stop down reset \
-        logs status port-forward tunnel hosts shell \
+        logs status port-forward port-forward-stop tunnel hosts shell \
         upgrade echo-logins do-nuke .env-check
 
 # ─── HELP ────────────────────────────────────────────────────────────────────
@@ -67,11 +67,15 @@ run-all: run run-ldap run-monitoring ## Deploy the full stack (all optional comp
 
 # ─── LIFECYCLE ───────────────────────────────────────────────────────────────
 
-start: ## Resume a stopped cluster — all PVC data is preserved
+start: ## Resume a stopped cluster — all PVC data is preserved, port-forwards restart automatically
 	minikube start -p $(PROFILE)
+	@printf "\n\033[1mPort-forwards:\033[0m\n"
+	@bash scripts/port-forward.sh
+	@echo ""
 	@echo "Cluster ready. Run 'make status' to check deployment health."
 
-stop: ## Pause minikube between sessions — fastest way to persist state
+stop: ## Pause minikube between sessions — stops port-forwards and preserves all data
+	@bash scripts/port-forward-stop.sh
 	minikube stop -p $(PROFILE)
 	@echo "Cluster paused. Resume with 'make start'."
 
@@ -90,7 +94,7 @@ do-nuke: ## DESTRUCTIVE: delete the minikube cluster and ALL data (requires CONF
 
 logs: ## Stream Mattermost pod logs (Ctrl+C to exit)
 	$(KUBECTL) -n $(NAMESPACE) logs -f \
-	  -l app.kubernetes.io/name=mattermost \
+	  -l app=mattermost \
 	  --all-containers=true --prefix=true
 
 status: ## Show pod health, Mattermost CR status, and resource overview
@@ -99,8 +103,12 @@ status: ## Show pod health, Mattermost CR status, and resource overview
 echo-logins: ## Print all access URLs, ports, and credentials
 	@bash scripts/status.sh --logins
 
-port-forward: ## Expose services on localhost (Mattermost :8065, MailHog :8025, MinIO :9001)
+port-forward: ## (Re-)start background port-forwards (Mattermost :8065, MailHog :8025, MinIO :9001)
+	@printf "\n\033[1mPort-forwards:\033[0m\n"
 	@bash scripts/port-forward.sh
+
+port-forward-stop: ## Stop background port-forwards
+	@bash scripts/port-forward-stop.sh
 
 tunnel: ## Start minikube tunnel for ingress access (may prompt for elevated privileges)
 	@echo "Tunnel running — access Mattermost at http://$(MM_DOMAIN)"
@@ -116,7 +124,7 @@ hosts: ## Print the /etc/hosts line needed for ingress-based access
 shell: ## Open a bash shell in the running Mattermost pod
 	$(KUBECTL) -n $(NAMESPACE) exec -it \
 	  $$($(KUBECTL) -n $(NAMESPACE) get pod \
-	    -l app.kubernetes.io/name=mattermost \
+	    -l app=mattermost \
 	    -o jsonpath='{.items[0].metadata.name}') \
 	  -- /bin/bash
 
