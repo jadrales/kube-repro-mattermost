@@ -103,12 +103,15 @@ if [ "$MONITORING" = true ]; then
   echo "  Access Grafana via: make port-forward  (then visit http://localhost:3000)"
 fi
 
+# ─── Port-forwards ────────────────────────────────────────────────────────
+
+printf "\n\033[1mStarting port-forwards:\033[0m\n"
+bash "$SCRIPT_DIR/port-forward.sh"
+
 # ─── Summary ──────────────────────────────────────────────────────────────
 
 printf "\n\033[1mMattermost is running!\033[0m\n\n"
-echo "  Access options:"
-echo "  • Port-forward (easiest):  make port-forward  → http://localhost:8065"
-echo "  • Ingress (DNS-based):     make hosts          → then http://${MM_DOMAIN}"
+echo "  Ingress (DNS-based): make hosts  → then http://${MM_DOMAIN}"
 echo ""
 echo "  Useful commands:"
 echo "  • make logs         — stream pod logs"
