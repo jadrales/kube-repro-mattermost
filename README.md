@@ -134,18 +134,54 @@ Then access Mattermost at `http://mattermost.local`.
 
 ## LDAP Test Credentials
 
-After running `make run-ldap`:
+After running `make run-ldap`, OpenLDAP is pre-seeded with Futurama characters — mirroring the [CS-Repro-Mattermost](https://github.com/coltoneshaw/CS-Repro-Mattermost) setup. A seed job then adds the Robot Mafia users in the background.
+
+**System Console → Authentication → AD/LDAP**
 
 | Field | Value |
 |-------|-------|
-| Server | `openldap.mattermost.svc.cluster.local:389` |
-| Bind DN | `cn=admin,dc=mattermost,dc=local` |
-| Bind password | `mmadmin` |
-| User base DN | `ou=users,dc=mattermost,dc=local` |
-| Test users | `user1`–`user5` / `Password1` |
-| Admin user | `ldap-admin` / `mmadmin` |
+| Server | `openldap.mattermost.svc.cluster.local` |
+| Port | `389` |
+| Base DN | `dc=planetexpress,dc=com` |
+| Bind DN | `cn=admin,dc=planetexpress,dc=com` |
+| Bind password | `GoodNewsEveryone` |
+| User filter | `(objectClass=Person)` |
+| Group filter | `(objectClass=Group)` |
+| Username attribute | `uid` |
+| ID attribute | `uid` |
+| Email attribute | `mail` |
+| First name attribute | `givenName` |
+| Last name attribute | `sn` |
+| Profile picture attribute | `jpegPhoto` |
+| Group display name attribute | `cn` |
+| Group ID attribute | `cn` |
+| Admin filter | `(memberof=cn=admin_staff,ou=people,dc=planetexpress,dc=com)` |
 
-Configure in Mattermost: **System Console → Authentication → AD/LDAP**
+**Users** — all under `ou=people,dc=planetexpress,dc=com`
+
+| uid | Display name | Password | Notes |
+|-----|-------------|----------|-------|
+| `professor` | Hubert J. Farnsworth | `professor` | System Admin via `admin_staff` |
+| `hermes` | Hermes Conrad | `hermes` | System Admin via `admin_staff` |
+| `fry` | Philip J. Fry | `fry` | |
+| `leela` | Turanga Leela | `leela` | |
+| `bender` | Bender Bending Rodríguez | `bender` | |
+| `zoidberg` | John A. Zoidberg | `zoidberg` | |
+| `amy` | Amy Wong | `amy` | |
+| `dsmith` | Donbot Smith | `dsmith` | Added by seed job |
+| `jmousepad` | Joey Mousepad | `jmousepad` | Added by seed job |
+
+**Groups**
+
+| Group | Members |
+|-------|---------|
+| `admin_staff` | professor, hermes |
+| `ship_crew` | leela, fry, bender (+ dsmith, jmousepad after seed job) |
+| `robot_mafia` | dsmith, jmousepad |
+
+The admin filter automatically promotes `professor` and `hermes` to Mattermost System Admin on LDAP sync.
+
+> **After an OpenLDAP pod restart**, the 7 Futurama characters and the `admin_staff`/`ship_crew` groups are restored automatically (baked into the image). Run `make ldap-seed` to re-add the Robot Mafia users.
 
 ## Cluster Inspection
 

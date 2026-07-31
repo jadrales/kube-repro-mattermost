@@ -1,5 +1,11 @@
-# OpenLDAP — mirrors the LDAP setup from CS-Repro-Mattermost
-# Pre-loaded with test users:  admin / mmadmin, user1–user5 / Password1
+# OpenLDAP — mirrors the CS-Repro-Mattermost LDAP setup using rroemhild/test-openldap.
+# The image pre-seeds 7 Futurama users and 2 groups (admin_staff, ship_crew) on every start.
+# A seed Job adds the Robot Mafia users (dsmith, jmousepad) and the robot_mafia group.
+#
+# Admin bind:  cn=admin,dc=planetexpress,dc=com / GoodNewsEveryone
+# Internal:    openldap.mattermost.svc.cluster.local:389
+#
+# NOTE: rroemhild/test-openldap is linux/amd64 only. Requires emulation on ARM (Apple Silicon).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,26 +26,11 @@ spec:
     spec:
       containers:
       - name: openldap
-        image: osixia/openldap:1.5.0
-        env:
-        - name: LDAP_ORGANISATION
-          value: "Mattermost"
-        - name: LDAP_DOMAIN
-          value: "mattermost.local"
-        - name: LDAP_ADMIN_PASSWORD
-          value: "mmadmin"
-        - name: LDAP_CONFIG_PASSWORD
-          value: "mmconfig"
-        - name: LDAP_READONLY_USER
-          value: "true"
-        - name: LDAP_READONLY_USER_USERNAME
-          value: "readonly"
-        - name: LDAP_READONLY_USER_PASSWORD
-          value: "readonly"
+        image: rroemhild/test-openldap:latest
         ports:
-        - containerPort: 389
+        - containerPort: 10389
           name: ldap
-        - containerPort: 636
+        - containerPort: 10636
           name: ldaps
         resources:
           requests:
@@ -63,12 +54,62 @@ spec:
   ports:
   - name: ldap
     port: 389
-    targetPort: 389
+    targetPort: 10389
   - name: ldaps
     port: 636
-    targetPort: 636
+    targetPort: 10636
 ---
-# Seed LDAP with test users immediately after OpenLDAP is ready
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ldap-seed-data
+  namespace: mattermost
+  labels:
+    app.kubernetes.io/part-of: mattermost-repro
+data:
+  robot-mafia-users.ldif: |
+    dn: cn=Joey Mousepad,ou=people,dc=planetexpress,dc=com
+    objectClass: top
+    objectClass: person
+    objectClass: organizationalPerson
+    objectClass: inetOrgPerson
+    cn: Joey Mousepad
+    sn: Mousepad
+    givenName: Joey
+    uid: jmousepad
+    userPassword: jmousepad
+    mail: jmousepad@planetexpress.com
+    title: Robot Mafia Henchperson
+
+    dn: cn=Donbot Smith,ou=people,dc=planetexpress,dc=com
+    objectClass: top
+    objectClass: person
+    objectClass: organizationalPerson
+    objectClass: inetOrgPerson
+    cn: Donbot Smith
+    sn: Smith
+    givenName: Donbot
+    uid: dsmith
+    userPassword: dsmith
+    mail: dsmith@planetexpress.com
+    title: Robot Mafia Godfather
+
+  robot-mafia-group.ldif: |
+    dn: cn=robot_mafia,ou=people,dc=planetexpress,dc=com
+    objectClass: top
+    objectClass: Group
+    cn: robot_mafia
+    member: cn=Donbot Smith,ou=people,dc=planetexpress,dc=com
+    member: cn=Joey Mousepad,ou=people,dc=planetexpress,dc=com
+
+  ship-crew-update.ldif: |
+    dn: cn=ship_crew,ou=people,dc=planetexpress,dc=com
+    changetype: modify
+    add: member
+    member: cn=Donbot Smith,ou=people,dc=planetexpress,dc=com
+    member: cn=Joey Mousepad,ou=people,dc=planetexpress,dc=com
+
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -81,66 +122,50 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      volumes:
+      - name: seed-data
+        configMap:
+          name: ldap-seed-data
       containers:
       - name: seed
         image: osixia/openldap:1.5.0
+        volumeMounts:
+        - name: seed-data
+          mountPath: /seed
         command:
         - /bin/bash
         - -c
         - |
-          # Wait for LDAP to be ready
-          until ldapsearch -x -H ldap://openldap:389 \
-            -D "cn=admin,dc=mattermost,dc=local" \
-            -w mmadmin -b "dc=mattermost,dc=local" > /dev/null 2>&1; do
-            echo "waiting for openldap..."; sleep 3
+          set -euo pipefail
+          LDAP_URI="ldap://openldap:389"
+          BIND_DN="cn=admin,dc=planetexpress,dc=com"
+          BIND_PW="GoodNewsEveryone"
+
+          echo "Waiting for OpenLDAP to be ready..."
+          until ldapsearch -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+            -b "dc=planetexpress,dc=com" "(uid=professor)" 2>/dev/null | grep -q "dn:"; do
+            echo "  not ready, retrying in 3s..."
+            sleep 3
           done
+          echo "OpenLDAP is ready."
 
-          # Create OU for users
-          ldapadd -x -H ldap://openldap:389 \
-            -D "cn=admin,dc=mattermost,dc=local" -w mmadmin <<EOF
-          dn: ou=users,dc=mattermost,dc=local
-          objectClass: organizationalUnit
-          ou: users
+          # Idempotency check — skip if Robot Mafia already exists
+          if ldapsearch -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+            -b "ou=people,dc=planetexpress,dc=com" "(uid=dsmith)" 2>/dev/null | grep -q "dn:"; then
+            echo "Already seeded — skipping."
+            exit 0
+          fi
 
-          dn: ou=groups,dc=mattermost,dc=local
-          objectClass: organizationalUnit
-          ou: groups
-          EOF
+          echo "Seeding Robot Mafia users..."
+          ldapadd -c -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+            -f /seed/robot-mafia-users.ldif
 
-          # Create test users (user1–user5 + ldap-admin)
-          for i in 1 2 3 4 5; do
-            ldapadd -x -H ldap://openldap:389 \
-              -D "cn=admin,dc=mattermost,dc=local" -w mmadmin <<EOF
-          dn: uid=user${i},ou=users,dc=mattermost,dc=local
-          objectClass: inetOrgPerson
-          objectClass: posixAccount
-          uid: user${i}
-          cn: Test User${i}
-          sn: User${i}
-          givenName: Test
-          mail: user${i}@mattermost.local
-          userPassword: Password1
-          uidNumber: $((1000 + i))
-          gidNumber: 1000
-          homeDirectory: /home/user${i}
-          EOF
-          done
+          echo "Creating robot_mafia group..."
+          ldapadd -c -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+            -f /seed/robot-mafia-group.ldif
 
-          # LDAP admin user (maps to Mattermost system admin)
-          ldapadd -x -H ldap://openldap:389 \
-            -D "cn=admin,dc=mattermost,dc=local" -w mmadmin <<EOF
-          dn: uid=ldap-admin,ou=users,dc=mattermost,dc=local
-          objectClass: inetOrgPerson
-          objectClass: posixAccount
-          uid: ldap-admin
-          cn: LDAP Admin
-          sn: Admin
-          givenName: LDAP
-          mail: ldap-admin@mattermost.local
-          userPassword: mmadmin
-          uidNumber: 1010
-          gidNumber: 1000
-          homeDirectory: /home/ldap-admin
-          EOF
+          echo "Adding Robot Mafia to ship_crew..."
+          ldapmodify -c -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+            -f /seed/ship-crew-update.ldif
 
           echo "LDAP seed complete."
