@@ -150,6 +150,52 @@ After running `make run-ldap`:
 
 Configure in Mattermost: **System Console → Authentication → AD/LDAP**
 
+## Cluster Inspection
+
+All `kubectl` commands target this cluster via the `mm-repro` context. Either set it as your active context once, or pass `--context mm-repro` on every command.
+
+```bash
+# Set as active context (persists until you switch again)
+kubectl config use-context mm-repro
+
+# Or pass it per-command (safer when juggling multiple clusters)
+kubectl --context mm-repro <subcommand>
+```
+
+**List namespaces**
+```bash
+kubectl --context mm-repro get namespaces
+```
+
+Key namespaces:
+- `mattermost` — Mattermost app, PostgreSQL, MinIO, MailHog, and optional add-ons
+- `mattermost-operator` — the operator that manages the Mattermost CR
+- `ingress-nginx` — ingress controller (created by `make setup`)
+
+**List pods**
+```bash
+# Pods in the mattermost namespace
+kubectl --context mm-repro -n mattermost get pods
+
+# All namespaces at once
+kubectl --context mm-repro get pods -A
+```
+
+**Exec into a pod**
+```bash
+# Shortcut — drops you into a shell on the Mattermost app pod
+make shell
+
+# Manual — works for any pod (postgres, minio, mailhog, etc.)
+kubectl --context mm-repro -n mattermost exec -it <pod-name> -- bash
+
+# Example: find and exec into the Postgres pod
+kubectl --context mm-repro -n mattermost get pods -l app=postgres
+kubectl --context mm-repro -n mattermost exec -it <postgres-pod-name> -- bash
+```
+
+Inside the Mattermost pod, `config.json` is at `/mattermost/config/config.json` and `mmctl` is available on the PATH.
+
 ## Troubleshooting
 
 **Pods stuck in `Pending`**
