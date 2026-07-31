@@ -34,11 +34,8 @@ spec:
           name: ldaps
         resources:
           requests:
-            memory: 128Mi
+            memory: 256Mi
             cpu: 100m
-          limits:
-            memory: 512Mi
-            cpu: 500m
 ---
 apiVersion: v1
 kind: Service
@@ -98,6 +95,7 @@ data:
     dn: cn=robot_mafia,ou=people,dc=planetexpress,dc=com
     objectClass: top
     objectClass: Group
+    groupType: 2147483650
     cn: robot_mafia
     member: cn=Donbot Smith,ou=people,dc=planetexpress,dc=com
     member: cn=Joey Mousepad,ou=people,dc=planetexpress,dc=com
@@ -136,10 +134,14 @@ spec:
         - /bin/bash
         - -c
         - |
-          set -euo pipefail
           LDAP_URI="ldap://openldap:389"
           BIND_DN="cn=admin,dc=planetexpress,dc=com"
           BIND_PW="GoodNewsEveryone"
+
+          exists() {
+            ldapsearch -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+              -b "ou=people,dc=planetexpress,dc=com" "$1" 2>/dev/null | grep -q "dn:"
+          }
 
           echo "Waiting for OpenLDAP to be ready..."
           until ldapsearch -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
@@ -149,23 +151,24 @@ spec:
           done
           echo "OpenLDAP is ready."
 
-          # Idempotency check — skip if Robot Mafia already exists
-          if ldapsearch -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
-            -b "ou=people,dc=planetexpress,dc=com" "(uid=dsmith)" 2>/dev/null | grep -q "dn:"; then
-            echo "Already seeded — skipping."
-            exit 0
+          if exists "(uid=dsmith)"; then
+            echo "Robot Mafia users already exist — skipping user add."
+          else
+            echo "Seeding Robot Mafia users..."
+            ldapadd -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+              -f /seed/robot-mafia-users.ldif
           fi
 
-          echo "Seeding Robot Mafia users..."
-          ldapadd -c -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
-            -f /seed/robot-mafia-users.ldif
+          if exists "(cn=robot_mafia)"; then
+            echo "robot_mafia group already exists — skipping group create."
+          else
+            echo "Creating robot_mafia group..."
+            ldapadd -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+              -f /seed/robot-mafia-group.ldif
+          fi
 
-          echo "Creating robot_mafia group..."
-          ldapadd -c -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
-            -f /seed/robot-mafia-group.ldif
-
-          echo "Adding Robot Mafia to ship_crew..."
-          ldapmodify -c -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
-            -f /seed/ship-crew-update.ldif
+          echo "Ensuring Robot Mafia members are in ship_crew..."
+          ldapmodify -x -H "$LDAP_URI" -D "$BIND_DN" -w "$BIND_PW" \
+            -f /seed/ship-crew-update.ldif 2>&1 | grep -v "already exists" || true
 
           echo "LDAP seed complete."
