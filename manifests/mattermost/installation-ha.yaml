@@ -75,3 +75,5 @@ spec:
     value: "false"
   - name: MM_RATELIMITSETTINGS_ENABLE
     value: "false"
+  - name: MM_SERVICESETTINGS_ENABLELOCALMODE
+    value: "true"

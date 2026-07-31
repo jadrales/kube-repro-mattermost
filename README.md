@@ -134,9 +134,11 @@ Then access Mattermost at `http://mattermost.local`.
 
 ## LDAP Test Credentials
 
-After running `make run-ldap`, OpenLDAP is pre-seeded with Futurama characters — mirroring the [CS-Repro-Mattermost](https://github.com/coltoneshaw/CS-Repro-Mattermost) setup. A seed job then adds the Robot Mafia users in the background.
+`make run-ldap` deploys OpenLDAP, waits for it to be ready, and then automatically configures all Mattermost LDAP settings via `mmctl` — no System Console steps required. It uses the [CS-Repro-Mattermost](https://github.com/coltoneshaw/CS-Repro-Mattermost) setup with Futurama characters pre-seeded by the image, plus a seed job that adds the Robot Mafia users.
 
-**System Console → Authentication → AD/LDAP**
+Run `make ldap-configure` to re-apply settings or trigger a sync at any time.
+
+**Connection settings** (applied automatically — shown here for reference)
 
 | Field | Value |
 |-------|-------|

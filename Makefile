@@ -25,7 +25,7 @@ HELM    := helm --kube-context $(PROFILE)
         run run-ha run-ldap run-monitoring run-all \
         start stop down reset \
         logs status port-forward port-forward-stop tunnel hosts shell \
-        upgrade echo-logins ldap-seed do-nuke .env-check
+        upgrade echo-logins ldap-seed ldap-configure do-nuke .env-check
 
 # ─── HELP ────────────────────────────────────────────────────────────────────
 
@@ -52,19 +52,14 @@ run: .env-check generate-secrets ## Deploy core stack: Mattermost + Postgres + M
 run-ha: .env-check generate-secrets ## Deploy HA variant: 2 Mattermost replicas with clustering
 	@bash scripts/up.sh --ha
 
-run-ldap: .env-check ## Add OpenLDAP pre-seeded with Futurama users and groups (mirrors CS-Repro)
+run-ldap: .env-check ## Deploy OpenLDAP and auto-configure all Mattermost LDAP settings
 	$(KUBECTL) apply -n $(NAMESPACE) -f manifests/optional/ldap.yaml
-	@echo "OpenLDAP deployed. Built-in users are available immediately."
-	@echo "  A seed job will add Robot Mafia users in the background."
-	@echo ""
-	@echo "  Configure Mattermost at System Console > Authentication > AD/LDAP:"
-	@echo "    Server:        openldap.$(NAMESPACE).svc.cluster.local"
-	@echo "    Port:          389"
-	@echo "    Base DN:       dc=planetexpress,dc=com"
-	@echo "    Bind DN:       cn=admin,dc=planetexpress,dc=com"
-	@echo "    Bind password: GoodNewsEveryone"
-	@echo ""
-	@echo "  See README for full user list and attribute mappings."
+	@echo "Waiting for OpenLDAP pod to be ready..."
+	@$(KUBECTL) -n $(NAMESPACE) wait pod -l app=openldap --for=condition=Ready --timeout=60s
+	@bash scripts/ldap-configure.sh
+
+ldap-configure: .env-check ## Re-apply all Mattermost LDAP settings and trigger a sync (idempotent)
+	@bash scripts/ldap-configure.sh
 
 ldap-seed: ## Re-seed LDAP with Robot Mafia users — run this after an OpenLDAP pod restart
 	-$(KUBECTL) -n $(NAMESPACE) delete job ldap-seed --ignore-not-found=true

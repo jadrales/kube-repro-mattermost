@@ -66,3 +66,6 @@ spec:
   # Disable rate limiting for reproducible testing
   - name: MM_RATELIMITSETTINGS_ENABLE
     value: "false"
+  # Enable mmctl local mode so make ldap-configure / make shell can use mmctl --local
+  - name: MM_SERVICESETTINGS_ENABLELOCALMODE
+    value: "true"
