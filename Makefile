@@ -90,7 +90,7 @@ do-nuke: ## DESTRUCTIVE: delete the minikube cluster and ALL data (requires CONF
 
 logs: ## Stream Mattermost pod logs (Ctrl+C to exit)
 	$(KUBECTL) -n $(NAMESPACE) logs -f \
-	  -l app.kubernetes.io/name=mattermost \
+	  -l app=mattermost \
 	  --all-containers=true --prefix=true
 
 status: ## Show pod health, Mattermost CR status, and resource overview
@@ -116,7 +116,7 @@ hosts: ## Print the /etc/hosts line needed for ingress-based access
 shell: ## Open a bash shell in the running Mattermost pod
 	$(KUBECTL) -n $(NAMESPACE) exec -it \
 	  $$($(KUBECTL) -n $(NAMESPACE) get pod \
-	    -l app.kubernetes.io/name=mattermost \
+	    -l app=mattermost \
 	    -o jsonpath='{.items[0].metadata.name}') \
 	  -- /bin/bash
 
