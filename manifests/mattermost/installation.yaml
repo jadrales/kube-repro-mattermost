@@ -13,11 +13,14 @@ spec:
   ingress:
     enabled: true
     host: ${MM_DOMAIN}
+    tlsSecret: mattermost-tls
     annotations:
       kubernetes.io/ingress.class: nginx
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 
   database:
     external:
@@ -30,6 +33,9 @@ spec:
       secret: mattermost-filestore-secret
 
   mattermostEnv:
+  # Site URL must match how users access Mattermost so links in emails and webhooks resolve correctly
+  - name: MM_SERVICESETTINGS_SITEURL
+    value: "https://${MM_DOMAIN}"
   # MinIO doesn't use TLS or SSE in this local setup
   - name: MM_FILESETTINGS_AMAZONS3SSL
     value: "false"

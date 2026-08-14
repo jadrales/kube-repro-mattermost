@@ -111,7 +111,7 @@ bash "$SCRIPT_DIR/port-forward.sh"
 # ─── Summary ──────────────────────────────────────────────────────────────
 
 printf "\n\033[1mMattermost is running!\033[0m\n\n"
-echo "  Ingress (DNS-based): make hosts  → then http://${MM_DOMAIN}"
+echo "  Ingress (DNS-based): make hosts  → then https://${MM_DOMAIN}"
 echo ""
 echo "  Useful commands:"
 echo "  • make logs         — stream pod logs"

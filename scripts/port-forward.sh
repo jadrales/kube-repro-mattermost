@@ -24,11 +24,20 @@ fi
 
 started=0
 
-# Mattermost
+# Mattermost (direct HTTP — bypasses ingress, no cert warning)
 if $K get svc mattermost >/dev/null 2>&1; then
   $K port-forward svc/mattermost 8065:8065 8067:8067 >/dev/null 2>&1 &
   echo $! >> "$PID_FILE"
-  printf "  \033[36mMattermost\033[0m       → http://localhost:8065\n"
+  printf "  \033[36mMattermost (HTTP)\033[0m  → http://localhost:8065\n"
+  started=$((started + 1))
+fi
+
+# Mattermost HTTPS via nginx ingress (TLS terminates at ingress, self-signed cert)
+if kubectl --context "$PROFILE" -n ingress-nginx get svc ingress-nginx-controller >/dev/null 2>&1; then
+  kubectl --context "$PROFILE" -n ingress-nginx \
+    port-forward svc/ingress-nginx-controller 8443:443 >/dev/null 2>&1 &
+  echo $! >> "$PID_FILE"
+  printf "  \033[36mMattermost (HTTPS)\033[0m → https://localhost:8443  (cert warning: import .tls/tls.crt to trust)\n"
   started=$((started + 1))
 fi
 

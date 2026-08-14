@@ -44,12 +44,13 @@ make setup
 
 # 3. Deploy Mattermost — port-forwards start automatically when ready
 make run
-# → Mattermost:    http://localhost:8065
-# → MailHog:       http://localhost:8025
-# → MinIO console: http://localhost:9001
+# → Mattermost (HTTPS): https://localhost:8443  ← self-signed cert; see below
+# → Mattermost (HTTP):  http://localhost:8065   ← direct, no cert warning
+# → MailHog:            http://localhost:8025
+# → MinIO console:      http://localhost:9001
 ```
 
-First visit to `http://localhost:8065` will prompt you to create an admin account.
+First visit will prompt you to create an admin account. Use `https://localhost:8443` for HTTPS (your browser will warn about the self-signed certificate — click through or import `.tls/tls.crt` as a trusted CA to silence it). Use `http://localhost:8065` for quick access without the cert warning.
 
 ## Session Workflow
 
@@ -120,7 +121,7 @@ make hosts
 make tunnel
 ```
 
-Then access Mattermost at `http://mattermost.local`.
+Then access Mattermost at `https://mattermost.local`. The TLS certificate is generated automatically by `make setup` / `make generate-secrets` — import `.tls/tls.crt` as a trusted CA in your browser to avoid the self-signed cert warning.
 
 ## Resetting vs Nuking
 

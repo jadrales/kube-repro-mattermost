@@ -21,7 +21,7 @@ HELM    := helm --kube-context $(PROFILE)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup generate-secrets \
+.PHONY: help setup generate-secrets generate-tls \
         run run-ha run-ldap run-monitoring run-all \
         start stop down reset \
         logs status port-forward port-forward-stop tunnel hosts shell \
@@ -41,8 +41,11 @@ help: ## Show available commands
 setup: .env-check ## (First run) Start minikube, enable addons, install Mattermost Operator
 	@bash scripts/setup.sh
 
-generate-secrets: .env-check ## Re-create Kubernetes secrets from current .env values
+generate-secrets: .env-check ## Re-create Kubernetes secrets from current .env values (includes TLS cert)
 	@bash scripts/generate-secrets.sh
+
+generate-tls: .env-check ## (Re-)generate the self-signed TLS cert and sync to the mattermost-tls secret
+	@bash scripts/generate-tls.sh
 
 # ─── DEPLOY ──────────────────────────────────────────────────────────────────
 

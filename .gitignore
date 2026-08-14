@@ -5,3 +5,5 @@ license.mattermost
 manifests/secrets/
 # Background port-forward PID tracking
 .pf.pid
+# Generated TLS certificate and key (import .tls/tls.crt to trust in browser)
+.tls/

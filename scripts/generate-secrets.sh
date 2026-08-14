@@ -65,3 +65,7 @@ else
   printf "\033[33m  !\033[0m No license file at '%s' — deploying Team Edition\n" "$LICENSE_PATH"
   printf "    Place your license at '%s' and re-run 'make generate-secrets'\n" "$LICENSE_PATH"
 fi
+
+# ─── TLS certificate (self-signed, for HTTPS ingress) ──────────────────────
+
+bash "$SCRIPT_DIR/generate-tls.sh"
